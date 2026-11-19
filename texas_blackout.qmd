@@ -4,6 +4,10 @@ In February 2021, severe winter storms hit Texas, bringing extremely low tempera
 
 ## Load Libraries
 ```{r}
+#| warning: false
+#| message: false
+#| output: false
+
 library(here)
 library(tidyverse)
 library(sf)
@@ -13,6 +17,10 @@ library(stars)
 
 ## Read in Data
 ```{r}
+#| warning: false
+#| message: false
+#| output: false
+
 query_road <- "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'"
 
 query_building <- "SELECT *
@@ -20,18 +28,28 @@ FROM gis_osm_buildings_a_free_1
 WHERE (type IS NULL AND name IS NULL)
 OR type in ('residential', 'apartments', 'house', 'static_caravan', 'detached')"
 
-roads <- st_read(here("data", "gis_osm_roads_free_1.gpkg"), query = query_road)
+roads <- st_read(here(
+  "data", "gis_osm_roads_free_1.gpkg"), query = query_road)
 
-buildings <- st_read(here("data", "gis_osm_buildings_a_free_1.gpkg"), query = query_building)
+buildings <- st_read(here(
+  "data", "gis_osm_buildings_a_free_1.gpkg"), query = query_building)
 
-tile1 <- stars::read_stars("data/VNP46A1/VNP46A1.A2021038.h08v05.001.2021039064328.tif")
-tile2 <- stars::read_stars("data/VNP46A1/VNP46A1.A2021038.h08v06.001.2021039064329.tif")
-tile3 <- stars::read_stars("data/VNP46A1/VNP46A1.A2021047.h08v05.001.2021048091106.tif")
-tile4 <- stars::read_stars("data/VNP46A1/VNP46A1.A2021047.h08v06.001.2021048091105.tif")
+tile1 <- stars::read_stars(
+  "data/VNP46A1/VNP46A1.A2021038.h08v05.001.2021039064328.tif")
+tile2 <- stars::read_stars(
+  "data/VNP46A1/VNP46A1.A2021038.h08v06.001.2021039064329.tif")
+tile3 <- stars::read_stars(
+  "data/VNP46A1/VNP46A1.A2021047.h08v05.001.2021048091106.tif")
+tile4 <- stars::read_stars(
+  "data/VNP46A1/VNP46A1.A2021047.h08v06.001.2021048091105.tif")
 ```
 
 ## Transform Rasters
 ```{r}
+#| warning: false
+#| message: false
+#| output: false
+
 # Create one raster for each day
 day1 <- st_mosaic(tile1, tile2)
 day2 <- st_mosaic(tile3, tile4)
@@ -54,11 +72,15 @@ day2_houston <- st_crop(day2, houston_bbox)
 
 ## Create Before and After Maps
 ```{r}
+#| warning: false
+#| message: false
+
 # Create consistent brightness limits for each map
 rad_limits <- c(0, quantile(day1_houston[[1]], 0.99, na.rm = TRUE))
 
 # Create consistent scale and legend for each map
-lights_scale <- tm_scale_continuous_log1p(values = "inferno", limits = rad_limits)
+lights_scale <- tm_scale_continuous_log1p(
+  values = "inferno", limits = rad_limits)
 lights_legend <- tm_legend(title = "Radiance\n(nW cm⁻² sr⁻¹)")
 
 # Create map before
@@ -83,6 +105,10 @@ tmap_arrange(map_before, map_after, nrow = 1)
 
 ## Determine Blackout Areas
 ```{r}
+#| warning: false
+#| message: false
+#| output: false
+
 # Create difference raster
 blackout <- (day1 - day2)
 
@@ -94,11 +120,13 @@ blackout[!is.na(blackout)] <- 1
 blackout_vect <- st_as_sf(blackout)
 blackout_vect <- st_make_valid(blackout_vect)
 
-# Transform vector CRS
-blackout_vect_transform <- st_transform(blackout_vect, crs = "EPSG:3083")
-
 # Crop vector to Houston extent
-blackout_vect_transform_crop <- st_crop(blackout_vect_transform, houston_bbox)
+blackout_vect_crop <- st_crop(blackout_vect, houston_bbox)
+
+# Transform vector CRS
+blackout_vect_crop_transform <- st_transform(
+  blackout_vect_crop, crs = "EPSG:3083")
+
 
 # Create 200m buffer around roads
 roads_buffer <- roads |>
@@ -107,7 +135,8 @@ roads_buffer <- roads |>
   st_union()
 
 # Remove areas within buffer
-blackout_no_hwy <- st_difference(blackout_vect_crop_transform, roads_buffer)
+blackout_no_hwy <- st_difference(
+  blackout_vect_crop_transform, roads_buffer)
 
 # Check CRS match
 if (st_crs(buildings) == st_crs(blackout_no_hwy)){
@@ -118,7 +147,8 @@ if (st_crs(buildings) == st_crs(blackout_no_hwy)){
 }
 
 # Keep buildings that touch a blackout area
-blackout_homes <- st_filter(buildings, blackout_no_hwy, .predicate = st_intersects)
+blackout_homes <- st_filter(
+  buildings, blackout_no_hwy, .predicate = st_intersects)
 
 # Find number of blackout homes
 n_homes <- nrow(blackout_homes)
@@ -127,11 +157,17 @@ n_homes
 
 ## Map Blackout Homes
 ```{r}
+#| warning: false
+#| message: false
+
 tm_shape(blackout_homes) +
   tm_basemap("OpenStreetMap") +
   tm_polygons(fill = "firebrick", col = "firebrick", lwd = 1.5) +
-  tm_add_legend(type = "polygons", labels = "Home that lost power", fill = "firebrick") +
-  tm_title(paste0("Homes in Houston that lost power (n = ", n_homes, ")")) +
+  tm_add_legend(type = "polygons", 
+  labels = "Home that lost power", 
+  fill = "firebrick") +
+  tm_title(paste0(
+    "Homes in Houston that lost power (n = ", n_homes, ")")) +
   tm_scalebar(position = c("left", "bottom")) +
   tm_compass(position = c("right", "top")) +
   tm_graticules()
